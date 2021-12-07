@@ -1,0 +1,17 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+boto3 = "*"
+click = "*"
+pydantic = "*"
+
+[dev-packages]
+black = "==21.6b0"
+rope = "*"
+jupyterlab = "*"
+
+[requires]
+python_version = "3.9"
