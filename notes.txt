@@ -1,5 +1,0 @@
-Step 1.
-pipenv run python transcribe-song.py --song filename.mp3 > output.xml
-
-Step 2.
-Use tempnotebook.ipynb to convert the saved json into xtiming

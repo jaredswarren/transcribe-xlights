@@ -1,3 +1,9 @@
+# xtiming files
+*.xtiming
+
+# JSON Files from amazon
+merry*output.json
+
 # Audio files
 *.mp3
 
