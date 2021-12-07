@@ -7,7 +7,7 @@ from pathlib import Path
 
 import boto3
 import click
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, Field, validator
 
 TEMP_S3_BUCKET_NAME = os.environ["S3_BUCKET"]
 JOB_SYMBOL = os.environ["JOB_SYMBOL"]
@@ -17,13 +17,17 @@ transcribeclient = boto3.client("transcribe")
 
 
 class Effect(BaseModel):
-    start_time: int
-    end_time: int
-    content: str
+    starttime: str = Field(alias="start_time")
+    endtime: str = Field(alias="end_time")
+    label: str = Field(alias="content")
 
-    @validator("start_time", "end_time", pre=True)
+    @validator("starttime", "endtime", pre=True)
     def check_time(cls, v):
-        return float(v) * 1000
+        return str(int(float(v) * 1000))
+
+
+class Effects(BaseModel):
+    effects: list[Effect]
 
 
 def getTranscriptionResults(inputMedia: str):
@@ -80,35 +84,32 @@ def generate_xtiming(job_name):
         if i["type"] != "pronunciation":
             continue
 
-        # If this is the first line go ahead and zero pad it
-        # I don't think this is needed
         if len(words) == 0:
-            words.append(
-                Effect(
-                    content="",
-                    start_time=0,
-                    end_time=i["start_time"],
-                )
+            this_word = Effect(
+                content="",
+                start_time=0,
+                end_time=i["start_time"],
             )
+            words.append(this_word)
+        elif words[-1].endtime != i["start_time"]:
+            this_word = Effect(
+                content="",
+                start_time=int(words[-1].endtime) / 1000,
+                end_time=i["start_time"],
+            )
+            words.append(this_word)
 
-        # Fill in the gaps between words.
-        # # I don't think this is needed
-        elif words[-1].end_time != i["start_time"]:
-            words.append(
-                Effect(
-                    content="",
-                    start_time=words[-1].end_time,
-                    end_time=i["start_time"],
-                )
-            )
-
-        words.append(
-            Effect(
-                content=i["alternatives"][0]["content"],
-                start_time=i["start_time"],
-                end_time=i["end_time"],
-            )
+        this_word = Effect(
+            content=i["alternatives"][0]["content"],
+            start_time=i["start_time"],
+            end_time=i["end_time"],
         )
+
+        # print(this_word)
+        # effect = Effect(**this_word)
+        words.append(this_word)
+
+    effects = Effects(effects=words)
 
     # ET object is created here
     root = ET.Element("timings")
@@ -119,12 +120,11 @@ def generate_xtiming(job_name):
     for word in words:
         ET.SubElement(effectlayer, "Effect", attrib=word.dict())
 
-    tree = ET(root)
-
     # Write the ET object to a file.
+    tree = ET.ElementTree(root)
+    ET.indent(tree)
     xml_file = Path(f"{job_name}.xtiming")
-    with open(xml_file, "wb") as of:
-        tree.write(of, xml_declaration=True)
+    tree.write(xml_file, xml_declaration=True, encoding="UTF-8")
 
 
 def createXMLOutput(jobName):
@@ -153,7 +153,7 @@ def createXMLOutput(jobName):
 @click.option("--song", type=click.File("rb"), help="Song name")
 def main(song):
     jobName = getTranscriptionResults(song.name)
-    createXMLOutput(jobName)
+    generate_xtiming(jobName)
 
 
 if __name__ == "__main__":
